@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import uuid from "react-native-uuid";
 import {
@@ -9,26 +9,43 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  Vibration,
 } from "react-native";
+import { getValueFor, save } from "./helpers/secureStore";
 
-const Item = ({ title, id, removeTask }) => (
-  <View style={styles.item}>
-    <Text style={styles.title}>{title}</Text>
-    <TouchableOpacity
-      style={{ ...styles.button, backgroundColor: "#ed6484", margin: 0 }}
-      onPress={() => removeTask(id)}
-    >
-      <Text style={styles.text}>X</Text>
+const Item = ({ title, id, removeTask, isEdit, handleChange }) => {
+  return (
+    <TouchableOpacity onLongPress={handleChange}>
+      <View style={styles.item}>
+        <Text style={styles.title}>{title}</Text>
+        {isEdit ? (
+          <TouchableOpacity
+            style={{ ...styles.button, backgroundColor: "#ed6484", margin: 0 }}
+            onPress={() => removeTask(id)}
+          >
+            <Text style={styles.text}>X</Text>
+          </TouchableOpacity>
+        ) : (
+          <View></View>
+        )}
+      </View>
     </TouchableOpacity>
-  </View>
-);
+  );
+};
 
 export default function App() {
-  const [text, onChangeText] = React.useState("");
-  const [list, addList] = React.useState([]);
+  const [text, onChangeText] = useState("");
+  const [list, addList] = useState([]);
+  const [isEdit, setEdit] = useState(false);
 
   const renderItem = ({ item }) => (
-    <Item title={item.title} id={item.id} removeTask={removeTask} />
+    <Item
+      title={item.title}
+      id={item.id}
+      removeTask={removeTask}
+      handleChange={handleChange}
+      isEdit={isEdit}
+    />
   );
 
   const addTask = () => {
@@ -36,18 +53,36 @@ export default function App() {
       Alert.alert("Empty input", "Type text of todo");
       return;
     }
+
     const task = {
       id: uuid.v4(),
       title: text,
     };
+
+    setEdit(false);
+
     addList([...list, task]);
+    save("list", JSON.stringify([...list, task]));
     onChangeText("");
   };
 
   const removeTask = (id) => {
     const updatedList = list.filter((item) => item.id !== id);
     addList(updatedList);
+    save("list", JSON.stringify(updatedList));
   };
+
+  const handleChange = () => {
+    // Alert.alert("Empty input", "Type text of todo");
+    Vibration.vibrate();
+    setEdit(!isEdit);
+  };
+
+  useEffect(() => {
+    getValueFor("list").then(
+      (data) => data.length > 0 && addList(JSON.parse(data))
+    );
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -62,7 +97,7 @@ export default function App() {
           <Text>Add Todo</Text>
         </TouchableOpacity>
       </View>
-      {list.length > 0 ? (
+      {list?.length > 0 ? (
         <FlatList
           data={list}
           renderItem={renderItem}
